@@ -20,10 +20,77 @@ else Q <= {Q[2:0], sin};   // shift left, sin enters at LSB
 Serial output: sout = Q[3]   (the bit about to be shifted out)
 
 ## Design / RTL Program
+// gedit shift_reg.v
+ 
+module shift_reg (
+    input  wire       clk,   // clock
+    input  wire       rst,   // asynchronous active-high reset
+    input  wire       sin,   // serial input
+    output wire       sout,  // serial output (MSB, about to shift out)
+    output reg  [3:0] Q      // parallel output
+);
+    always @(posedge clk or posedge rst) begin
+        if (rst)
+            Q <= 4'b0000;
+        else
+            Q <= {Q[2:0], sin};   // shift left, sin enters at LSB
+    end
+ 
+    assign sout = Q[3];
+endmodule
 
-Testbench Program
 
 
+module tb7;
+    reg  clk, rst, en;
+    wire [3:0] count;
+ 
+    // Instantiate the up-counter
+    up_counter uut (
+        .clk(clk),
+        .rst(rst),
+        .en(en),
+        .count(count)
+    );
+ 
+    // ---- Clock generation: 10 time-unit period ----
+    initial clk = 0;
+    always #5 clk = ~clk;
+ 
+    initial begin
+        // ---- VCD dump setup ----
+        $dumpfile("up_counter.vcd");   // name of the VCD file to be generated
+        $dumpvars(0, tb7);               // dump all signals in this testbench hierarchy
+ 
+        $monitor("Time=%0t rst=%b clk=%b en=%b | count=%b (%0d)",
+                  $time, rst, clk, en, count, count);
+ 
+        // ---- Apply asynchronous reset ----
+        rst = 1; en = 0;
+        #7  rst = 0;
+ 
+        // ---- Disable counting: count should hold at 0 ----
+        @(negedge clk);
+        @(negedge clk);
+ 
+        // ---- Enable counting and let it run past overflow ----
+        en = 1;
+        repeat (18) @(negedge clk);   // 18 clocks: 4-bit count wraps around once
+ 
+        // ---- Disable again and confirm the count holds ----
+        en = 0;
+        @(negedge clk);
+        @(negedge clk);
+ 
+        // ---- Apply reset again mid-simulation ----
+        rst = 1;
+        @(negedge clk);
+        rst = 0; en = 1;
+        repeat (3) @(negedge clk);
+ 
+        #20 $finish;
+    end
+endmodule
 
 
 ## Operation / Truth Table
@@ -82,6 +149,7 @@ Q(next) = {Q[2:0], sin}
 The design was compiled and simulated using Synopsys VCS, and the functionality was verified using DVE waveform analysis, matching the expected operation table.
 
 ## Output
+<img width="1920" height="991" alt="dlcexp6" src="https://github.com/user-attachments/assets/c875f8f9-0183-45f6-bca1-208a427fb4a7" />
 
 
 
